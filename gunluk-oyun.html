@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="theme-color" content="#0f1020" />
+<title>Günün Oyunları — 2 Kişilik Düello</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<style>
+  :root{
+    --bg:#0f1020; --bg2:#171933; --card:#1d2040; --card2:#23264d;
+    --txt:#eef0ff; --muted:#9aa0d0; --line:#2c2f5e;
+    --accent:#7c5cff; --accent2:#22d3ee; --good:#34d399; --warn:#fbbf24; --bad:#fb7185;
+    --gold:#ffd166;
+    --radius:16px; --shadow:0 10px 30px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:radial-gradient(1200px 600px at 80% -10%,#26285a 0%,transparent 60%),
+               radial-gradient(900px 500px at -10% 110%,#1b3a4a 0%,transparent 55%),
+               var(--bg);
+    color:var(--txt); min-height:100vh; line-height:1.45;
+  }
+  .wrap{max-width:760px;margin:0 auto;padding:16px 14px 90px}
+  h1,h2,h3{margin:0 0 .4em}
+  h1{font-size:1.45rem;letter-spacing:.3px}
+  h2{font-size:1.1rem}
+  .muted{color:var(--muted)}
+  .small{font-size:.82rem}
+  .center{text-align:center}
+  .hidden{display:none!important}
+  .card{background:linear-gradient(180deg,var(--card),var(--card2));border:1px solid var(--line);
+        border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;margin:12px 0}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .row.between{justify-content:space-between}
+  button{
+    font:inherit;color:var(--txt);background:#2a2e5e;border:1px solid var(--line);
+    padding:11px 14px;border-radius:12px;cursor:pointer;transition:.15s;font-weight:600
+  }
+  button:hover{transform:translateY(-1px);border-color:var(--accent)}
+  button:active{transform:translateY(0)}
+  button.primary{background:linear-gradient(135deg,var(--accent),#5b86ff);border:none}
+  button.ghost{background:transparent}
+  button.tiny{padding:7px 10px;font-size:.8rem;border-radius:10px}
+  button:disabled{opacity:.45;cursor:not-allowed;transform:none}
+  input{
+    font:inherit;color:var(--txt);background:#15173a;border:1px solid var(--line);
+    padding:12px 14px;border-radius:12px;width:100%;outline:none
+  }
+  input:focus{border-color:var(--accent)}
+  label{display:block;margin:10px 0 6px;color:var(--muted);font-size:.85rem}
+  .topbar{display:flex;justify-content:space-between;align-items:center;gap:10px;
+          padding:10px 4px;position:sticky;top:0;z-index:30;
+          backdrop-filter:blur(8px);background:rgba(15,16,32,.7);border-bottom:1px solid var(--line)}
+  .pill{display:inline-flex;align-items:center;gap:6px;background:#2a2e5e;border:1px solid var(--line);
+        padding:5px 10px;border-radius:999px;font-size:.8rem}
+  .tabs{display:flex;gap:6px;margin:10px 0;overflow:auto;padding-bottom:4px}
+  .tabs button{white-space:nowrap;flex:0 0 auto}
+  .tabs button.active{background:linear-gradient(135deg,var(--accent),#5b86ff);border:none}
+  .grid-games{display:grid;grid-template-columns:1fr;gap:12px}
+  .game-tile{display:flex;align-items:center;gap:14px;cursor:pointer;text-align:left;width:100%;
+             padding:16px;background:linear-gradient(180deg,var(--card),var(--card2))}
+  .game-tile .ic{font-size:2rem;width:54px;height:54px;display:grid;place-items:center;
+                 background:#15173a;border-radius:14px;border:1px solid var(--line);flex:0 0 auto}
+  .game-tile .meta{flex:1}
+  .badge{font-size:.72rem;padding:3px 8px;border-radius:999px;font-weight:700}
+  .badge.done{background:rgba(52,211,153,.15);color:var(--good);border:1px solid rgba(52,211,153,.4)}
+  .badge.todo{background:rgba(251,191,36,.12);color:var(--warn);border:1px solid rgba(251,191,36,.35)}
+  .badge.hard{background:rgba(124,92,255,.18);color:#b9a7ff;border:1px solid rgba(124,92,255,.5)}
+  .badge.vhard{background:rgba(251,113,133,.15);color:var(--bad);border:1px solid rgba(251,113,133,.45)}
+
+  /* ZIP */
+  .zip-wrap{position:relative;margin:8px auto;touch-action:none;user-select:none;width:min(94vw,420px)}
+  .zip-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:0;
+            background:var(--line);border:2px solid var(--line);border-radius:14px;overflow:hidden;position:relative}
+  .zc{aspect-ratio:1;background:#13152f;display:grid;place-items:center;position:relative;
+      font-weight:800;font-size:clamp(.8rem,3.4vw,1.1rem);border:.5px solid #20234a;color:#cfd3ff}
+  .zc.fill{background:rgba(124,92,255,.20)}
+  .zc.cp{background:#1b1f46;color:#fff}
+  .zc.cp.fill{background:rgba(124,92,255,.32)}
+  .zc .num{z-index:3;background:#2a2e5e;border:2px solid var(--accent2);border-radius:999px;
+           width:74%;height:74%;display:grid;place-items:center;box-shadow:0 2px 8px rgba(0,0,0,.4)}
+  svg.zip-line{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2}
+  .zip-controls{display:flex;gap:8px;justify-content:center;margin-top:10px;flex-wrap:wrap}
+
+  /* MEMORY */
+  .mem-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;max-width:360px;margin:10px auto}
+  .mcard{aspect-ratio:1;border-radius:12px;background:#2a2e5e;display:grid;place-items:center;
+         font-size:1.8rem;cursor:pointer;border:1px solid var(--line);transition:.2s;transform-style:preserve-3d}
+  .mcard.flip{background:#15173a;border-color:var(--accent2)}
+  .mcard.matched{background:rgba(52,211,153,.18);border-color:var(--good);cursor:default}
+  .mcard .face{opacity:0}
+  .mcard.flip .face,.mcard.matched .face{opacity:1}
+
+  /* SCHULTE */
+  .sch-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;max-width:400px;margin:10px auto}
+  .scell{aspect-ratio:1;border-radius:10px;background:#2a2e5e;display:grid;place-items:center;
+         font-weight:800;font-size:1.1rem;cursor:pointer;border:1px solid var(--line)}
+  .scell.ok{background:rgba(52,211,153,.2);border-color:var(--good);color:var(--good)}
+  .scell.bad{background:rgba(251,113,133,.25);border-color:var(--bad)}
+
+  /* SIMON */
+  .simon{display:grid;grid-template-columns:1fr 1fr;gap:10px;max-width:300px;margin:14px auto}
+  .spad{aspect-ratio:1;border-radius:16px;opacity:.55;cursor:pointer;border:2px solid rgba(255,255,255,.08);transition:.1s}
+  .spad.lit{opacity:1;transform:scale(1.04);box-shadow:0 0 24px currentColor}
+  .spad.p0{background:#ef4444;color:#ef4444}.spad.p1{background:#22d3ee;color:#22d3ee}
+  .spad.p2{background:#34d399;color:#34d399}.spad.p3{background:#fbbf24;color:#fbbf24}
+
+  /* MATH */
+  .math-q{font-size:2rem;font-weight:800;text-align:center;margin:10px 0}
+
+  table{width:100%;border-collapse:collapse;margin-top:6px}
+  th,td{padding:9px 8px;text-align:left;border-bottom:1px solid var(--line);font-size:.9rem}
+  th{color:var(--muted);font-weight:600;font-size:.78rem;text-transform:uppercase;letter-spacing:.4px}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;font-weight:700}
+  .lead{font-size:1.1rem}
+  .you{color:var(--accent2);font-weight:800}
+  .crown{color:var(--gold)}
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);
+         background:#23264d;border:1px solid var(--accent);padding:12px 18px;border-radius:12px;
+         box-shadow:var(--shadow);opacity:0;transition:.25s;z-index:100;max-width:90vw;text-align:center}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .navbar{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:space-around;
+          background:rgba(23,25,51,.92);backdrop-filter:blur(10px);border-top:1px solid var(--line);z-index:40}
+  .navbar button{flex:1;border:none;border-radius:0;background:transparent;padding:12px 4px;font-size:.72rem;
+                 display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--muted);font-weight:600}
+  .navbar button.active{color:var(--accent2)}
+  .navbar .ni{font-size:1.25rem}
+  .stat{flex:1;min-width:120px;background:#15173a;border:1px solid var(--line);border-radius:14px;padding:12px}
+  .stat .v{font-size:1.5rem;font-weight:800}
+  .stat .l{color:var(--muted);font-size:.78rem}
+  .vs{display:flex;align-items:stretch;gap:10px;margin:6px 0}
+  .vs .p{flex:1;background:#15173a;border:1px solid var(--line);border-radius:14px;padding:12px;text-align:center}
+  .vs .p.win{border-color:var(--good);box-shadow:0 0 0 1px var(--good) inset}
+  .vs .mid{display:grid;place-items:center;color:var(--muted);font-weight:800}
+  .seg{display:flex;background:#15173a;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .seg button{flex:1;border:none;border-radius:0;background:transparent}
+  .seg button.active{background:linear-gradient(135deg,var(--accent),#5b86ff)}
+  code.kv{display:block;word-break:break-all;background:#0c0e22;border:1px solid var(--line);
+          border-radius:10px;padding:10px;font-size:.72rem;color:var(--accent2);margin-top:6px}
+  .hint{font-size:.82rem;color:var(--muted);margin-top:8px}
+  a{color:var(--accent2)}
+</style>
+</head>
+<body>
+
+<!-- ============ AUTH ============ -->
+<div id="auth" class="wrap">
+  <div style="text-align:center;margin-top:8vh">
+    <div style="font-size:3rem">🎮</div>
+    <h1>Günün Oyunları</h1>
+    <p class="muted">2 kişilik günlük düello · skorlu yarışma</p>
+  </div>
+  <div class="card">
+    <div class="seg" id="authSeg">
+      <button data-m="login" class="active">Giriş Yap</button>
+      <button data-m="register">Kayıt Ol</button>
+    </div>
+    <div id="loginBox">
+      <label>Kullanıcı adı</label>
+      <input id="loginUser" autocomplete="username" placeholder="örn. volkan" />
+      <label>Şifre</label>
+      <input id="loginPass" type="password" autocomplete="current-password" placeholder="••••••" />
+      <div style="margin-top:14px"><button class="primary" style="width:100%" onclick="doLogin()">Giriş</button></div>
+      <p class="hint">Kayıtlı kullanıcılar: <span id="userList" class="you">—</span></p>
+    </div>
+    <div id="registerBox" class="hidden">
+      <label>Kullanıcı adı belirle</label>
+      <input id="regUser" placeholder="örn. arkadaşının adı" />
+      <label>Şifre belirle</label>
+      <input id="regPass" type="password" placeholder="en az 3 karakter" />
+      <div style="margin-top:14px"><button class="primary" style="width:100%" onclick="doRegister()">Hesabı Oluştur</button></div>
+      <p class="hint">Bu uygulama <b>en fazla 2 kullanıcı</b> içindir.</p>
+    </div>
+  </div>
+  <p class="center small muted">Veriler bu cihazda saklanır. Arkadaşınla skor paylaşmak için <b>Skorlar → Skor Kodu</b> bölümünü kullanın.</p>
+</div>
+
+<!-- ============ APP ============ -->
+<div id="app" class="hidden">
+  <div class="topbar">
+    <div class="row" style="gap:8px">
+      <span style="font-size:1.3rem">🎮</span>
+      <b>Günün Oyunları</b>
+    </div>
+    <div class="row" style="gap:8px">
+      <span class="pill">👤 <b id="whoami" class="you"></b></span>
+      <button class="tiny ghost" onclick="logout()">Çıkış</button>
+    </div>
+  </div>
+  <div class="wrap" style="padding-top:6px">
+
+    <!-- HOME -->
+    <section id="view-home">
+      <p class="muted small" id="todayLabel"></p>
+      <div class="card">
+        <h2>Bugünün Oyunları</h2>
+        <div id="gameTiles" class="grid-games"></div>
+      </div>
+      <div class="card">
+        <h2>Bugünün Düellosu</h2>
+        <div id="dailyVs"></div>
+        <p class="hint">Aynı gün her iki oyuncu da <b>aynı bulmacaları</b> oynar — adil yarış.</p>
+      </div>
+    </section>
+
+    <!-- PLAY -->
+    <section id="view-play" class="hidden">
+      <button class="ghost tiny" onclick="show('home')">← Geri</button>
+      <div class="card" id="playArea"></div>
+    </section>
+
+    <!-- SCORES -->
+    <section id="view-scores" class="hidden">
+      <div class="tabs" id="scoreTabs">
+        <button data-s="daily" class="active">Günlük</button>
+        <button data-s="zipw">Haftalık Zip</button>
+        <button data-s="zipall">Zip Toplam</button>
+        <button data-s="genw">Haftalık Genel</button>
+        <button data-s="genall">Genel Liderlik</button>
+      </div>
+      <div id="scorePanel"></div>
+    </section>
+
+    <!-- SHARE -->
+    <section id="view-share" class="hidden">
+      <div class="card">
+        <h2>🔗 Skor Kodu (cihazlar arası senkron)</h2>
+        <p class="small muted">Backend olmadığı için skorlar her cihazda yereldir. Arkadaşınla yarışmak için:
+        kendi kodunu <b>kopyala</b>, ona gönder; o <b>içe aktarsın</b>. Karşılıklı yapınca ortak tablo oluşur.</p>
+        <div class="row" style="margin-top:10px">
+          <button class="primary" onclick="exportCode()">📤 Kodumu Oluştur & Kopyala</button>
+        </div>
+        <code class="kv" id="exportOut">—</code>
+        <label>Arkadaşının kodunu yapıştır</label>
+        <input id="importIn" placeholder="buraya kodu yapıştır" />
+        <div style="margin-top:10px"><button onclick="importCode()">📥 İçe Aktar</button></div>
+        <p class="hint">Not: İçe aktarınca arkadaşının skorları bu cihazda görünür ama oturum açamaz — sadece tablolar için.</p>
+      </div>
+    </section>
+
+    <!-- ADMIN (sadece vomur) -->
+    <section id="view-admin" class="hidden">
+      <div class="card" style="border-color:var(--gold)">
+        <div class="row between"><h2>🛡️ Admin Paneli</h2><span class="pill crown">vomur</span></div>
+        <p class="small muted">Yönetici yetkisi — puan durumunu istediğin an sıfırla. Hesaplar (kullanıcı adı/şifre) korunur.</p>
+        <div class="row" style="margin-top:10px">
+          <button class="primary" onclick="adminResetAll()">🏆 Tüm Puanları Sıfırla</button>
+          <button onclick="adminResetWeek()">📅 Bu Haftayı Sıfırla</button>
+          <button onclick="adminResetZip()">🧩 Sadece Zip'i Sıfırla</button>
+        </div>
+        <div class="row" style="margin-top:10px;align-items:flex-end">
+          <div style="flex:1;min-width:150px"><label style="margin-top:0">Belirli bir günü sıfırla</label>
+            <input type="date" id="adminDay"></div>
+          <button onclick="adminResetDay()">🗓️ Seçili Günü Sıfırla</button>
+        </div>
+        <div id="adminUsers" style="margin-top:12px"></div>
+      </div>
+      <div class="card">
+        <h3>Bu cihazdaki veriyi yönet</h3>
+        <div class="row">
+          <button class="ghost tiny" onclick="wipeConfirm()">Tüm veriyi sil (hesaplar dahil)</button>
+        </div>
+        <p class="hint">Sadece bu cihazın yerel verisini tamamen temizler.</p>
+      </div>
+    </section>
+
+  </div>
+
+  <nav class="navbar">
+    <button data-v="home" class="active" onclick="show('home')"><span class="ni">🏠</span>Ana Sayfa</button>
+    <button data-v="scores" onclick="show('scores')"><span class="ni">🏆</span>Skorlar</button>
+    <button data-v="share" onclick="show('share')"><span class="ni">🔗</span>Paylaş</button>
+    <button data-v="admin" id="navAdmin" class="hidden" onclick="show('admin')"><span class="ni">🛡️</span>Admin</button>
+  </nav>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+/* =================================================================
+   GÜNÜN OYUNLARI — tek dosya, backend yok, localStorage tabanlı
+   ================================================================= */
+const KEY='gunluk_oyun_v2';
+const EMOJIS=['🍎','🚀','🌙','🎲','🎧','🐱','⚡','🌈','🔥','🍩','🎯','🏀','🦊','🍀','💎','🐙'];
+const GAME_POOL=['memory','schulte','simon','math']; // Zip dışı havuz (günlük 2 seçilir)
+const GAME_INFO={
+  memory:{name:'Hafıza Oyunu',icon:'🧠',desc:'Eşleri bul, az hamlede bitir'},
+  schulte:{name:'Sıra Bulmaca',icon:'🔢',desc:'1→25 sırayla en hızlı dokun'},
+  simon:{name:'Desen Hafızası',icon:'🎵',desc:'Renk dizisini tekrarla'},
+  math:{name:'Matematik Sprint',icon:'➗',desc:'30 sn’de en çok doğru'}
+};
+
+/* ---------- storage ---------- */
+let DB=load();
+function load(){try{return JSON.parse(localStorage.getItem(KEY))||fresh()}catch(e){return fresh()}}
+function fresh(){return{users:{},scores:{},session:null}}
+function save(){localStorage.setItem(KEY,JSON.stringify(DB))}
+
+/* ---------- FIREBASE bulut senkron ---------- */
+const FIRE_CONFIG={
+  apiKey:"AIzaSyBFK1_cEdSlIaUz1TRp36HFE-AOlWBtjDs",
+  authDomain:"gunluk-oyun.firebaseapp.com",
+  databaseURL:"https://gunluk-oyun-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId:"gunluk-oyun",
+  storageBucket:"gunluk-oyun.firebasestorage.app",
+  messagingSenderId:"699799643042",
+  appId:"1:699799643042:web:0a71a32525c2d74f72c8fb"
+};
+let fdb=null,usersSeeded=false,scoresSeeded=false;
+function hasLocalScores(){return Object.keys(DB.scores||{}).some(u=>Object.keys(DB.scores[u]||{}).length>0)}
+function cloudInit(){
+  try{
+    if(typeof firebase==='undefined')return; // SDK yüklenemedi → çevrimdışı çalış
+    firebase.initializeApp(FIRE_CONFIG);
+    fdb=firebase.database();
+    fdb.ref('users').on('value',s=>{
+      const v=s.val();
+      if((!v||Object.keys(v).length===0)&&Object.keys(DB.users).length>0&&!usersSeeded){usersSeeded=true;fdb.ref('users').set(DB.users);return;}
+      usersSeeded=true;DB.users=v||{};save();onCloudUpdate();
+    });
+    fdb.ref('scores').on('value',s=>{
+      const v=s.val();
+      if((!v||Object.keys(v).length===0)&&hasLocalScores()&&!scoresSeeded){scoresSeeded=true;fdb.ref('scores').set(DB.scores);return;}
+      scoresSeeded=true;DB.scores=v||{};save();onCloudUpdate();
+    });
+  }catch(e){console.warn('Bulut bağlanamadı, çevrimdışı mod:',e)}
+}
+function onCloudUpdate(){
+  refreshUserList();
+  if(document.getElementById('app').classList.contains('hidden'))return;
+  if(!document.getElementById('view-home').classList.contains('hidden'))renderHome();
+  else if(!document.getElementById('view-scores').classList.contains('hidden'))renderScores(currentScoreTab);
+  else if(!document.getElementById('view-admin').classList.contains('hidden'))renderAdmin();
+}
+function cloudPushUser(u){if(fdb)try{fdb.ref('users/'+u).set(DB.users[u])}catch(e){}}
+function cloudPushDay(u,date){if(fdb)try{fdb.ref('scores/'+u+'/'+date).set(DB.scores[u]?.[date]||null)}catch(e){}}
+function cloudPushScores(){if(fdb)try{fdb.ref('scores').set(DB.scores)}catch(e){}}
+function cloudPushAll(){if(fdb)try{fdb.ref('users').set(DB.users);fdb.ref('scores').set(DB.scores)}catch(e){}}
+
+/* ---------- helpers ---------- */
+function hash(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return(h>>>0).toString(36)}
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function rngFor(tag){return mulberry32(parseInt(hash(todayStr()+'|'+tag).slice(0,8),36)>>>0)}
+function todayStr(d){d=d||new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function weekDates(d){d=d||new Date();const day=(d.getDay()+6)%7;const mon=new Date(d);mon.setDate(d.getDate()-day);
+  return Array.from({length:7},(_,i)=>{const x=new Date(mon);x.setDate(mon.getDate()+i);return todayStr(x)})}
+function fmtDate(s){const[y,m,dd]=s.split('-');const names=['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];return dd+' '+names[+m-1]+' '+y}
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2200)}
+
+/* ---------- daily game selection (deterministic) ---------- */
+function dailyGames(){const r=rngFor('select');const pool=[...GAME_POOL];for(let i=pool.length-1;i>0;i--){const j=Math.floor(r()*(i+1));[pool[i],pool[j]]=[pool[j],pool[i]]}return pool.slice(0,2)}
+
+/* ---------- score model ---------- */
+function ensureUser(u){if(!DB.scores[u])DB.scores[u]={}}
+function dayRec(u,date){ensureUser(u);if(!DB.scores[u][date])DB.scores[u][date]={};return DB.scores[u][date]}
+function recordScore(gameId,pts,extra){
+  const u=DB.session,date=todayStr();const rec=dayRec(u,date);
+  const prev=rec[gameId]?.pts||0;
+  if(pts>prev){rec[gameId]={pts,done:true,...(extra||{})};save();cloudPushDay(u,date);}
+  return pts>prev;
+}
+function zipPts(u,dates){let t=0;dates.forEach(d=>{const e=DB.scores[u]?.[d];if(e){t+=(e.zipHard?.pts||0)+(e.zipVeryHard?.pts||0)}});return t}
+function genPts(u,dates){let t=0;dates.forEach(d=>{const e=DB.scores[u]?.[d];if(e)for(const k in e)t+=e[k]?.pts||0});return t}
+function allUsers(){return Object.keys(DB.scores)}
+function allDates(u){return Object.keys(DB.scores[u]||{})}
+
+/* =================================================================
+   AUTH
+   ================================================================= */
+document.querySelectorAll('#authSeg button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#authSeg button').forEach(x=>x.classList.remove('active'));b.classList.add('active');
+  const reg=b.dataset.m==='register';
+  document.getElementById('registerBox').classList.toggle('hidden',!reg);
+  document.getElementById('loginBox').classList.toggle('hidden',reg);
+});
+function refreshUserList(){const us=Object.keys(DB.users);document.getElementById('userList').textContent=us.length?us.join(', '):'henüz yok'}
+function doRegister(){
+  const u=document.getElementById('regUser').value.trim().toLowerCase();
+  const p=document.getElementById('regPass').value;
+  if(!u||u.length<2)return toast('Geçerli bir kullanıcı adı gir');
+  if(p.length<3)return toast('Şifre en az 3 karakter olmalı');
+  if(DB.users[u])return toast('Bu kullanıcı zaten var, giriş yap');
+  if(Object.keys(DB.users).length>=2)return toast('En fazla 2 kullanıcı olabilir');
+  DB.users[u]={pass:hash('s4lt'+p),created:Date.now()};ensureUser(u);DB.session=u;save();cloudPushUser(u);enterApp();toast('Hoş geldin '+u+'!');
+}
+function doLogin(){
+  const u=document.getElementById('loginUser').value.trim().toLowerCase();
+  const p=document.getElementById('loginPass').value;
+  if(!DB.users[u])return toast('Kullanıcı bulunamadı — Kayıt Ol sekmesini dene');
+  if(DB.users[u].pass!==hash('s4lt'+p))return toast('Şifre yanlış');
+  DB.session=u;save();enterApp();
+}
+function logout(){DB.session=null;save();document.getElementById('app').classList.add('hidden');document.getElementById('auth').classList.remove('hidden');refreshUserList()}
+
+/* =================================================================
+   NAV
+   ================================================================= */
+function enterApp(){
+  document.getElementById('auth').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  document.getElementById('whoami').textContent=DB.session;
+  document.getElementById('navAdmin').classList.toggle('hidden',DB.session!==ADMIN);
+  document.getElementById('todayLabel').textContent=fmtDate(todayStr())+' · Bugünün bulmacaları';
+  show('home');
+}
+function show(v){
+  ['home','play','scores','share','admin'].forEach(x=>document.getElementById('view-'+x).classList.add('hidden'));
+  document.getElementById('view-'+v).classList.remove('hidden');
+  document.querySelectorAll('.navbar button').forEach(b=>b.classList.toggle('active',b.dataset.v===v));
+  if(v==='home')renderHome();
+  if(v==='scores')renderScores(currentScoreTab);
+  if(v==='share')document.getElementById('exportOut').textContent='—';
+  if(v==='admin')renderAdmin();
+}
+
+/* =================================================================
+   HOME
+   ================================================================= */
+function renderHome(){
+  const date=todayStr(),u=DB.session,rec=DB.scores[u]?.[date]||{};
+  const tiles=[];
+  // Zip Zor + Çok Zor
+  tiles.push(zipTile('zipHard','Zip · Zor','hard',rec.zipHard));
+  tiles.push(zipTile('zipVeryHard','Zip · Çok Zor','vhard',rec.zipVeryHard));
+  // Günlük 2 oyun
+  dailyGames().forEach(g=>{
+    const info=GAME_INFO[g],done=rec[g]?.done;
+    tiles.push(`<button class="game-tile card" onclick="openGame('${g}')">
+      <div class="ic">${info.icon}</div>
+      <div class="meta"><b>${info.name}</b><div class="muted small">${info.desc}</div></div>
+      <div>${done?`<span class="badge done">✓ ${rec[g].pts}p</span>`:'<span class="badge todo">Oyna</span>'}</div>
+    </button>`);
+  });
+  document.getElementById('gameTiles').innerHTML=tiles.join('');
+  renderDailyVs();
+}
+function zipTile(id,title,cls,r){
+  return `<button class="game-tile card" onclick="openGame('${id}')">
+    <div class="ic">🧩</div>
+    <div class="meta"><b>${title}</b> <span class="badge ${cls}">${cls==='hard'?'ZOR':'ÇOK ZOR'}</span>
+      <div class="muted small">7×7 · sayıları sırayla bağla, tüm kareleri doldur</div></div>
+    <div>${r?.done?`<span class="badge done">✓ ${r.pts}p</span>`:'<span class="badge todo">Oyna</span>'}</div>
+  </button>`;
+}
+function renderDailyVs(){
+  const date=todayStr(),us=allUsers();
+  if(us.length<1){document.getElementById('dailyVs').innerHTML='<p class="muted small">Henüz skor yok.</p>';return}
+  const rows=us.map(u=>({u,g:genPts(u,[date]),z:zipPts(u,[date])}));
+  const max=Math.max(...rows.map(r=>r.g),1);
+  let html='<div class="vs">';
+  rows.sort((a,b)=>b.g-a.g);
+  rows.forEach((r,i)=>{
+    const win=rows.length>1&&i===0&&r.g>0;
+    html+=`<div class="p ${win?'win':''}">
+      <div class="${r.u===DB.session?'you':''}" style="font-weight:800">${r.u===DB.session?'Sen':r.u} ${win?'👑':''}</div>
+      <div style="font-size:1.6rem;font-weight:800">${r.g}</div>
+      <div class="muted small">genel · Zip ${r.z}</div></div>`;
+    if(i===0&&rows.length>1)html+='<div class="mid">VS</div>';
+  });
+  html+='</div>';
+  document.getElementById('dailyVs').innerHTML=html;
+}
+
+/* =================================================================
+   GAME ROUTER
+   ================================================================= */
+function openGame(id){
+  show('play');
+  const area=document.getElementById('playArea');
+  if(id==='zipHard')return renderZip(area,'hard');
+  if(id==='zipVeryHard')return renderZip(area,'veryhard');
+  if(id==='memory')return renderMemory(area);
+  if(id==='schulte')return renderSchulte(area);
+  if(id==='simon')return renderSimon(area);
+  if(id==='math')return renderMath(area);
+}
+function finishGame(gameId,pts,msg,extra){
+  const improved=recordScore(gameId,pts,extra);
+  toast((improved?'🎉 Yeni rekor! ':'Kaydedildi · ')+pts+' puan');
+  setTimeout(()=>{renderHome();show('home')},900);
+}
+
+/* =================================================================
+   ZIP — 7x7 Hamiltonian path puzzle
+   ================================================================= */
+function buildHamiltonian(rng,N=7){
+  // başlangıç: yılan yolu
+  let path=[];for(let r=0;r<N;r++){if(r%2===0)for(let c=0;c<N;c++)path.push([r,c]);else for(let c=N-1;c>=0;c--)path.push([r,c])}
+  const key=(r,c)=>r*N+c;
+  const idxOf=new Array(N*N);path.forEach((p,i)=>idxOf[key(p[0],p[1])]=i);
+  const adj=(a,b)=>Math.abs(a[0]-b[0])+Math.abs(a[1]-b[1])===1;
+  // backbite ile rastgeleleştir
+  for(let it=0;it<2500;it++){
+    const end=rng()<0.5?0:path.length-1;
+    const node=path[end];
+    const nbrs=[[node[0]-1,node[1]],[node[0]+1,node[1]],[node[0],node[1]-1],[node[0],node[1]+1]]
+      .filter(([r,c])=>r>=0&&r<N&&c>=0&&c<N);
+    const nb=nbrs[Math.floor(rng()*nbrs.length)];
+    const ni=idxOf[key(nb[0],nb[1])];
+    if(end===0){
+      if(ni===1)continue;
+      const seg=path.slice(0,ni).reverse();
+      path=seg.concat(path.slice(ni));
+    }else{
+      if(ni===path.length-2)continue;
+      const seg=path.slice(ni+1).reverse();
+      path=path.slice(0,ni+1).concat(seg);
+    }
+    path.forEach((p,i)=>idxOf[key(p[0],p[1])]=i);
+  }
+  return path;
+}
+function makeZip(diff){
+  const rng=rngFor('zip-'+diff),N=7;
+  const path=buildHamiltonian(rng,N);
+  const k=diff==='hard'?6:4; // az ipucu = daha zor
+  // checkpoint indeksleri: uçlar + eşit aralık
+  const idxs=[0];for(let i=1;i<k-1;i++)idxs.push(Math.round(i*(path.length-1)/(k-1)));idxs.push(path.length-1);
+  const uniq=[...new Set(idxs)].sort((a,b)=>a-b);
+  const cps={};uniq.forEach((pi,n)=>{const[r,c]=path[pi];cps[r*N+c]=n+1});
+  return{N,path,cps,count:uniq.length,diff};
+}
+let ZIP=null;
+function renderZip(area,diff){
+  const z=makeZip(diff);ZIP={...z,user:[],done:false,t0:Date.now()};
+  const N=z.N;
+  let cells='';
+  for(let r=0;r<N;r++)for(let c=0;c<N;c++){
+    const n=z.cps[r*N+c];
+    cells+=`<div class="zc ${n?'cp':''}" data-r="${r}" data-c="${c}">${n?`<span class="num">${n}</span>`:''}</div>`;
+  }
+  area.innerHTML=`
+    <div class="row between"><h2>Zip · ${diff==='hard'?'Zor':'Çok Zor'}</h2>
+      <span class="badge ${diff==='hard'?'hard':'vhard'}">${z.count} sayı</span></div>
+    <p class="muted small">1’den başla; sayıları <b>sırayla</b> bağla ve <b>tüm 49 kareyi</b> doldur. Parmağını sürükle.</p>
+    <div class="zip-wrap" id="zipWrap">
+      <div class="zip-grid" id="zipGrid">${cells}</div>
+      <svg class="zip-line" id="zipLine"><polyline fill="none" stroke="url(#zg)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" points=""/>
+        <defs><linearGradient id="zg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7c5cff"/><stop offset="1" stop-color="#22d3ee"/></linearGradient></defs></svg>
+    </div>
+    <div class="zip-controls">
+      <button class="tiny ghost" onclick="zipUndo()">↩︎ Geri Al</button>
+      <button class="tiny ghost" onclick="zipReset()">🗑 Temizle</button>
+      <button class="tiny primary" onclick="zipCheck()">✓ Kontrol Et</button>
+    </div>
+    <p class="hint" id="zipMsg">İlerleme: 0 / 49</p>`;
+  setupZipInput();
+  drawZip();
+}
+function cellAt(r,c){return document.querySelector(`#zipGrid .zc[data-r="${r}"][data-c="${c}"]`)}
+function setupZipInput(){
+  const grid=document.getElementById('zipGrid');
+  let drawing=false;
+  const handle=(x,y)=>{
+    const el=document.elementFromPoint(x,y);if(!el)return;
+    const cell=el.closest('.zc');if(!cell)return;
+    const r=+cell.dataset.r,c=+cell.dataset.c;tryExtend(r,c);
+  };
+  grid.addEventListener('pointerdown',e=>{e.preventDefault();drawing=true;grid.setPointerCapture(e.pointerId);
+    const cell=e.target.closest('.zc');if(cell)tryStartOrExtend(+cell.dataset.r,+cell.dataset.c)});
+  grid.addEventListener('pointermove',e=>{if(drawing){e.preventDefault();handle(e.clientX,e.clientY)}});
+  grid.addEventListener('pointerup',()=>drawing=false);
+  grid.addEventListener('pointercancel',()=>drawing=false);
+}
+function tryStartOrExtend(r,c){
+  if(ZIP.user.length===0){
+    if(ZIP.cps[r*ZIP.N+c]===1){ZIP.user=[[r,c]];drawZip()}
+    else toast('1 numaralı kareden başla');
+  }else tryExtend(r,c);
+}
+function tryExtend(r,c){
+  const u=ZIP.user;if(u.length===0){tryStartOrExtend(r,c);return}
+  const last=u[u.length-1];
+  if(u.length>=2){const prev=u[u.length-2];if(prev[0]===r&&prev[1]===c){u.pop();drawZip();return}} // geri çekme
+  if(Math.abs(last[0]-r)+Math.abs(last[1]-c)!==1)return; // komşu değil
+  if(u.some(p=>p[0]===r&&p[1]===c))return; // ziyaret edildi
+  u.push([r,c]);drawZip();
+}
+function zipUndo(){if(ZIP.user.length){ZIP.user.pop();drawZip()}}
+function zipReset(){ZIP.user=[];drawZip();document.getElementById('zipMsg').textContent='İlerleme: 0 / 49'}
+function drawZip(){
+  document.querySelectorAll('#zipGrid .zc').forEach(c=>c.classList.remove('fill'));
+  ZIP.user.forEach(([r,c])=>cellAt(r,c).classList.add('fill'));
+  const grid=document.getElementById('zipGrid');
+  const pts=ZIP.user.map(([r,c])=>{const el=cellAt(r,c);return (el.offsetLeft+el.offsetWidth/2)+','+(el.offsetTop+el.offsetHeight/2)}).join(' ');
+  document.querySelector('#zipLine polyline').setAttribute('points',pts);
+  document.getElementById('zipMsg').textContent='İlerleme: '+ZIP.user.length+' / 49';
+}
+function zipCheck(){
+  const u=ZIP.user,N=ZIP.N;
+  if(u.length!==N*N)return toast('Tüm 49 kareyi doldurmalısın ('+u.length+'/49)');
+  // checkpoint sırası kontrolü
+  let expect=1;
+  for(const[r,c]of u){const n=ZIP.cps[r*N+c];if(n){if(n!==expect)return toast('Sayılar sırayla değil! '+expect+' bekleniyordu');expect++}}
+  if(expect!==ZIP.count+1)return toast('Bazı sayılara uğramadın');
+  // başarı — puan
+  const secs=Math.round((Date.now()-ZIP.t0)/1000);
+  const base=ZIP.diff==='hard'?100:200;
+  const bonus=Math.max(0,Math.round((ZIP.diff==='hard'?150:300)-secs)/3|0);
+  const pts=base+Math.max(0,bonus);
+  finishGame(ZIP.diff==='hard'?'zipHard':'zipVeryHard',pts,'',{time:secs});
+}
+
+/* =================================================================
+   MEMORY
+   ================================================================= */
+function renderMemory(area){
+  const rng=rngFor('memory');
+  const set=[...EMOJIS].sort(()=>rng()-0.5).slice(0,12);
+  let cards=[...set,...set];for(let i=cards.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[cards[i],cards[j]]=[cards[j],cards[i]]}
+  let flipped=[],matched=0,moves=0,t0=Date.now(),lock=false;
+  area.innerHTML=`<div class="row between"><h2>🧠 Hafıza Oyunu</h2><span class="pill">Hamle: <b id="mMoves">0</b></span></div>
+    <p class="muted small">12 çift kart — eşleri bul. Ne kadar az hamle, o kadar çok puan.</p>
+    <div class="mem-grid" id="memGrid">${cards.map((e,i)=>`<div class="mcard" data-i="${i}"><span class="face">${e}</span></div>`).join('')}</div>`;
+  document.querySelectorAll('#memGrid .mcard').forEach(card=>{
+    card.onclick=()=>{
+      if(lock||card.classList.contains('flip')||card.classList.contains('matched'))return;
+      card.classList.add('flip');flipped.push(card);
+      if(flipped.length===2){
+        moves++;document.getElementById('mMoves').textContent=moves;lock=true;
+        const[a,b]=flipped;
+        if(cards[a.dataset.i]===cards[b.dataset.i]){
+          setTimeout(()=>{a.classList.add('matched');b.classList.add('matched');flipped=[];lock=false;matched++;
+            if(matched===12){const secs=Math.round((Date.now()-t0)/1000);
+              const pts=Math.max(100,1000-(moves-12)*16-secs*2);finishGame('memory',pts)}},320);
+        }else setTimeout(()=>{a.classList.remove('flip');b.classList.remove('flip');flipped=[];lock=false},700);
+      }
+    };
+  });
+}
+
+/* =================================================================
+   SCHULTE — sıra bulmaca
+   ================================================================= */
+function renderSchulte(area){
+  const rng=rngFor('schulte');
+  let nums=Array.from({length:36},(_,i)=>i+1);for(let i=nums.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[nums[i],nums[j]]=[nums[j],nums[i]]}
+  let next=1,t0=null;
+  area.innerHTML=`<div class="row between"><h2>🔢 Sıra Bulmaca</h2><span class="pill">Hedef: <b id="sNext">1</b></span></div>
+    <p class="muted small">1’den 36’ya kadar <b>sırayla</b> dokun. Süre ne kadar kısa, puan o kadar yüksek.</p>
+    <div class="sch-grid" id="schGrid">${nums.map(n=>`<div class="scell" data-n="${n}">${n}</div>`).join('')}</div>
+    <p class="hint" id="sTime">İlk dokunuşla süre başlar</p>`;
+  document.querySelectorAll('#schGrid .scell').forEach(cell=>{
+    cell.onclick=()=>{
+      const n=+cell.dataset.n;
+      if(n===next){
+        if(!t0)t0=Date.now();
+        cell.classList.add('ok');next++;document.getElementById('sNext').textContent=Math.min(next,36);
+        if(next>36){const secs=((Date.now()-t0)/1000);document.getElementById('sTime').textContent='Süre: '+secs.toFixed(1)+'s';
+          const pts=Math.max(100,Math.round(1200-secs*7));finishGame('schulte',pts,'',{time:Math.round(secs)})}
+      }else{cell.classList.add('bad');setTimeout(()=>cell.classList.remove('bad'),250)}
+    };
+  });
+}
+
+/* =================================================================
+   SIMON — desen hafızası
+   ================================================================= */
+function renderSimon(area){
+  const rng=rngFor('simon');
+  const seq=Array.from({length:30},()=>Math.floor(rng()*4)); // günlük sabit dizi
+  let round=1,input=[],lock=true;
+  area.innerHTML=`<div class="row between"><h2>🎵 Desen Hafızası</h2><span class="pill">Tur: <b id="simRound">1</b></span></div>
+    <p class="muted small">Yanan renk dizisini izle, sonra aynısını tekrarla. Her tur bir renk uzar.</p>
+    <div class="simon" id="simonPads">${[0,1,2,3].map(i=>`<div class="spad p${i}" data-i="${i}"></div>`).join('')}</div>
+    <div class="center"><button class="primary" id="simStart" onclick="">▶ Diziyi Göster</button></div>
+    <p class="hint center" id="simMsg">Hazır olunca başlat</p>`;
+  const pads=[...document.querySelectorAll('#simonPads .spad')];
+  function flash(i){const dur=Math.max(160,400-round*16),gap=Math.max(60,150-round*6);
+    return new Promise(res=>{pads[i].classList.add('lit');setTimeout(()=>{pads[i].classList.remove('lit');setTimeout(res,gap)},dur)})}
+  async function play(){lock=true;document.getElementById('simMsg').textContent='İzle...';
+    for(let i=0;i<round;i++)await flash(seq[i]);
+    document.getElementById('simMsg').textContent='Şimdi tekrarla!';input=[];lock=false}
+  document.getElementById('simStart').onclick=()=>{document.getElementById('simStart').classList.add('hidden');play()};
+  pads.forEach(p=>p.onclick=()=>{
+    if(lock)return;const i=+p.dataset.i;p.classList.add('lit');setTimeout(()=>p.classList.remove('lit'),160);
+    input.push(i);
+    const idx=input.length-1;
+    if(input[idx]!==seq[idx]){const pts=(round-1)*45;document.getElementById('simMsg').textContent='Bitti! '+(round-1)+' tur';
+      lock=true;return finishGame('simon',Math.max(0,pts))}
+    if(input.length===round){round++;document.getElementById('simRound').textContent=round;
+      if(round>20){return finishGame('simon',20*45)}
+      lock=true;setTimeout(play,500)}
+  });
+}
+
+/* =================================================================
+   MATH SPRINT
+   ================================================================= */
+function renderMath(area){
+  const rng=rngFor('math');
+  let correct=0,qn=0,ended=false;
+  function nextQ(){
+    const ops=['+','−','×'];const op=ops[Math.floor(rng()*3)];
+    let a,b,ans;
+    if(op==='×'){a=3+Math.floor(rng()*11);b=3+Math.floor(rng()*11);ans=a*b}
+    else{a=11+Math.floor(rng()*28);b=4+Math.floor(rng()*24);if(op==='−'&&b>a){const t=a;a=b;b=t}ans=op==='+'?a+b:a-b}
+    const opts=new Set([ans]);while(opts.size<4)opts.add(ans+Math.floor(rng()*13)-6);
+    const arr=[...opts].sort(()=>rng()-0.5);
+    document.getElementById('mathQ').textContent=`${a} ${op} ${b} = ?`;
+    document.getElementById('mathOpts').innerHTML=arr.map(o=>`<button style="flex:1;min-width:64px" data-o="${o}">${o}</button>`).join('');
+    document.querySelectorAll('#mathOpts button').forEach(btn=>btn.onclick=()=>{
+      if(ended)return;
+      if(+btn.dataset.o===ans){correct++;document.getElementById('mathScore').textContent=correct}
+      else{btn.style.borderColor='var(--bad)'}
+      nextQ();
+    });
+  }
+  area.innerHTML=`<div class="row between"><h2>➗ Matematik Sprint</h2>
+      <span class="pill">⏱ <b id="mathTime">25</b>s · Doğru: <b id="mathScore">0</b></span></div>
+    <p class="muted small">25 saniyede en çok doğru cevabı ver (toplama, çıkarma, çarpma).</p>
+    <div class="math-q" id="mathQ">Başlamak için hazır ol...</div>
+    <div class="row" id="mathOpts"></div>`;
+  let t=25;nextQ();
+  const timer=setInterval(()=>{t--;document.getElementById('mathTime').textContent=t;
+    if(t<=0){clearInterval(timer);ended=true;document.getElementById('mathQ').textContent='Süre doldu!';
+      document.getElementById('mathOpts').innerHTML='';finishGame('math',correct*40)}},1000);
+}
+
+/* =================================================================
+   SCORES
+   ================================================================= */
+let currentScoreTab='daily';
+document.querySelectorAll('#scoreTabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#scoreTabs button').forEach(x=>x.classList.remove('active'));b.classList.add('active');
+  currentScoreTab=b.dataset.s;renderScores(currentScoreTab);
+});
+function renderScores(tab){
+  const panel=document.getElementById('scorePanel');const us=allUsers();
+  if(us.length===0){panel.innerHTML='<div class="card"><p class="muted">Henüz skor yok. Bir oyun oyna!</p></div>';return}
+  const wd=weekDates(),today=todayStr();
+  let html='';
+  if(tab==='daily'){
+    html+=`<div class="card"><h2>Bugünün Skorları</h2><p class="muted small">${fmtDate(today)}</p>${
+      scoreTable(us.map(u=>({u,zip:zipPts(u,[today]),gen:genPts(u,[today])})),['Zip','Genel'],['zip','gen'])}</div>`;
+    // detay
+    html+='<div class="card"><h3>Oyun Detayı (bugün)</h3><table><tr><th>Oyuncu</th><th>Zip Zor</th><th>Zip Ç.Zor</th><th>Diğer</th></tr>';
+    us.forEach(u=>{const e=DB.scores[u]?.[today]||{};let other=0;for(const k in e)if(!k.startsWith('zip'))other+=e[k].pts||0;
+      html+=`<tr><td class="${u===DB.session?'you':''}">${u===DB.session?'Sen':u}</td><td class="num">${e.zipHard?.pts||0}</td><td class="num">${e.zipVeryHard?.pts||0}</td><td class="num">${other}</td></tr>`});
+    html+='</table></div>';
+  }else if(tab==='zipw'){
+    html+=`<div class="card"><h2>🧩 Haftalık Zip</h2><p class="muted small">${fmtDate(wd[0])} – ${fmtDate(wd[6])} · her pazartesi sıfırlanır</p>${
+      scoreTable(us.map(u=>({u,v:zipPts(u,wd)})),['Zip Puan'],['v'],true)}</div>`;
+  }else if(tab==='zipall'){
+    html+=`<div class="card"><h2>🧩 Zip Genel Toplam</h2><p class="muted small">tüm zamanlar</p>${
+      scoreTable(us.map(u=>({u,v:zipPts(u,allDates(u))})),['Zip Toplam'],['v'],true)}</div>`;
+  }else if(tab==='genw'){
+    html+=`<div class="card"><h2>Haftalık Genel</h2><p class="muted small">${fmtDate(wd[0])} – ${fmtDate(wd[6])} · her pazartesi sıfırlanır</p>${
+      scoreTable(us.map(u=>({u,v:genPts(u,wd)})),['Genel Puan'],['v'],true)}</div>`;
+  }else if(tab==='genall'){
+    html+=`<div class="card"><h2>👑 Genel Liderlik</h2><p class="muted small">tüm haftaların toplamı</p>${
+      scoreTable(us.map(u=>({u,v:genPts(u,allDates(u))})),['Toplam Puan'],['v'],true)}</div>`;
+  }
+  panel.innerHTML=html;
+}
+function scoreTable(rows,heads,fields,rank){
+  const sortField=fields[fields.length-1];
+  rows.sort((a,b)=>b[sortField]-a[sortField]);
+  let h='<table><tr>'+(rank?'<th>#</th>':'')+'<th>Oyuncu</th>'+heads.map(x=>`<th class="num">${x}</th>`).join('')+'</tr>';
+  rows.forEach((r,i)=>{
+    const me=r.u===DB.session;
+    h+=`<tr><td>${rank?(i===0&&r[sortField]>0?'<span class="crown">🥇</span>':(i+1)):''}</td>`+
+       `<td class="${me?'you':''}">${me?'Sen':r.u} ${i===0&&rank&&r[sortField]>0?'':''}</td>`+
+       fields.map(f=>`<td class="num lead">${r[f]||0}</td>`).join('')+'</tr>';
+  });
+  return h+'</table>';
+}
+
+/* =================================================================
+   SHARE / SYNC (skor kodu)
+   ================================================================= */
+function exportCode(){
+  const u=DB.session;
+  const payload={users:{[u]:DB.users[u]},scores:{[u]:DB.scores[u]||{}}};
+  const code=btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+  document.getElementById('exportOut').textContent=code;
+  if(navigator.clipboard)navigator.clipboard.writeText(code).then(()=>toast('Kod kopyalandı!'),()=>toast('Kod oluşturuldu'));
+  else toast('Kod oluşturuldu — manuel kopyala');
+}
+function importCode(){
+  const raw=document.getElementById('importIn').value.trim();
+  if(!raw)return toast('Önce kodu yapıştır');
+  try{
+    const data=JSON.parse(decodeURIComponent(escape(atob(raw))));
+    let merged=0;
+    for(const u in data.scores){
+      if(!DB.scores[u])DB.scores[u]={};
+      for(const d in data.scores[u]){
+        if(!DB.scores[u][d])DB.scores[u][d]={};
+        for(const g in data.scores[u][d]){
+          const inc=data.scores[u][d][g];const cur=DB.scores[u][d][g];
+          if(!cur||(inc.pts||0)>(cur.pts||0)){DB.scores[u][d][g]=inc;merged++}
+        }
+      }
+      if(data.users&&data.users[u]&&!DB.users[u]&&Object.keys(DB.users).length<2){/* sadece tablo için, login engellenmez */}
+    }
+    save();cloudPushAll();toast('✓ İçe aktarıldı ('+merged+' kayıt güncellendi)');
+    document.getElementById('importIn').value='';
+  }catch(e){toast('Geçersiz kod')}
+}
+function resetWeekConfirm(){
+  if(!confirm('Bu haftanın skorları silinsin mi? (genel toplam korunur)'))return;
+  const wd=weekDates();allUsers().forEach(u=>wd.forEach(d=>{if(DB.scores[u]?.[d])delete DB.scores[u][d]}));
+  save();toast('Bu hafta sıfırlandı');renderScores(currentScoreTab);
+}
+function wipeConfirm(){
+  if(!confirm('TÜM veriler (kullanıcılar + skorlar) silinsin mi? Geri alınamaz.'))return;
+  DB=fresh();save();if(fdb){fdb.ref('users').set(null);fdb.ref('scores').set(null);}logout();toast('Tüm veri silindi');
+}
+
+/* ---------- ADMIN (sadece 'vomur') ---------- */
+const ADMIN='vomur';
+function isAdmin(){return DB.session===ADMIN}
+function renderAdmin(){
+  if(!isAdmin())return;
+  const dayInput=document.getElementById('adminDay');if(dayInput&&!dayInput.value)dayInput.value=todayStr();
+  const us=allUsers();
+  document.getElementById('adminUsers').innerHTML=us.length
+    ?'<h3 style="margin-bottom:4px">Oyuncu bazında sıfırla</h3>'+us.map(u=>`<div class="row between" style="margin:6px 0"><span class="${u===DB.session?'you':''}">${u} <span class="muted small">${genPts(u,allDates(u))}p</span></span><button class="tiny ghost" onclick="adminResetUser('${u}')">Sıfırla</button></div>`).join('')
+    :'<p class="muted small">Henüz oyuncu yok.</p>';
+}
+function adminResetAll(){if(!isAdmin())return;if(!confirm('TÜM oyuncuların TÜM puanları sıfırlansın mı? (hesaplar korunur)'))return;allUsers().forEach(u=>DB.scores[u]={});save();cloudPushScores();toast('🏆 Tüm puanlar sıfırlandı');renderAdmin();}
+function adminResetWeek(){if(!isAdmin())return;if(!confirm('Bu haftanın puanları sıfırlansın mı? (genel toplam korunur)'))return;const wd=weekDates();allUsers().forEach(u=>wd.forEach(d=>{if(DB.scores[u]?.[d])delete DB.scores[u][d]}));save();cloudPushScores();toast('📅 Bu hafta sıfırlandı');renderAdmin();}
+function adminResetZip(){if(!isAdmin())return;if(!confirm('Tüm Zip puanları sıfırlansın mı?'))return;allUsers().forEach(u=>{for(const d in DB.scores[u]){delete DB.scores[u][d].zipHard;delete DB.scores[u][d].zipVeryHard}});save();cloudPushScores();toast('🧩 Zip puanları sıfırlandı');renderAdmin();}
+function adminResetUser(u){if(!isAdmin())return;if(!confirm('"'+u+'" oyuncusunun puanları sıfırlansın mı?'))return;DB.scores[u]={};save();cloudPushScores();toast(u+' sıfırlandı');renderAdmin();}
+function adminResetDay(){if(!isAdmin())return;const d=document.getElementById('adminDay').value;if(!d)return toast('Önce bir gün seç');if(!confirm(fmtDate(d)+' günündeki tüm puanlar silinsin mi?'))return;allUsers().forEach(u=>{if(DB.scores[u]?.[d])delete DB.scores[u][d]});save();cloudPushScores();toast('🗓️ '+fmtDate(d)+' sıfırlandı');renderAdmin();}
+
+/* =================================================================
+   INIT
+   ================================================================= */
+cloudInit();
+refreshUserList();
+if(DB.session&&DB.users[DB.session])enterApp();
+window.addEventListener('resize',()=>{if(ZIP&&!document.getElementById('view-play').classList.contains('hidden'))drawZip()});
+</script>
+</body>
+</html>
